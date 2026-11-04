@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=StayOnTop
+Exec=python3 %h/.local/bin/stayontop.py
