@@ -2,12 +2,12 @@
 """StayOnTop: remembers per-window workspace, 'on all workspaces' and 'always on top'
 (X11 / Cinnamon on Linux Mint) and re-applies them when the window reappears.
 
-  stayontop.py          run the daemon
+  stayontop.py          run the daemon (event-driven, needs python3-xlib)
   stayontop.py --list   live, auto-refreshing table of windows and their state
 
 Windows of the same app get separate slots (class#1, class#2, ...), so one
 window's settings no longer bleed into another. Slots are assigned in the order
-windows appear. Requires: wmctrl, x11-utils (xprop).
+windows appear. Requires: wmctrl, x11-utils python3-xlib (xprop).
 """
 import json, os, subprocess, sys, time
 
@@ -71,31 +71,73 @@ def assign_key(cls, keys):
     return f"{cls}#{n}"
 
 
+def reconcile(saved, known, keys):
+    try:
+        cur = windows()
+    except Exception:
+        return
+    for wid in sorted(cur, key=lambda x: int(x, 16)):
+        w = cur[wid]
+        st = state_of(w)
+        if wid not in known:
+            keys[wid] = assign_key(w["class"], keys)
+            want = saved.get(keys[wid])
+            if want and want != st:
+                apply(wid, want)
+                st = dict(want)
+            known[wid] = st
+        elif known[wid] != st:
+            known[wid] = st
+            saved[keys[wid]] = st
+            save(saved)
+    for wid in set(known) - set(cur):
+        del known[wid], keys[wid]
+
+
 def daemon():
+    """Event-driven: sleeps until X reports a window list/state/desktop change."""
+    import select
+    from Xlib import X, display, error
+
+    d = display.Display()
+    root = d.screen().root
+    atoms = {d.intern_atom(n): n for n in
+             ("_NET_CLIENT_LIST", "_NET_WM_STATE", "_NET_WM_DESKTOP")}
+    client_list = d.intern_atom("_NET_CLIENT_LIST")
+    root.change_attributes(event_mask=X.PropertyChangeMask)
+
+    watched = set()
+
+    def watch_clients():
+        prop = root.get_full_property(client_list, X.AnyPropertyType)
+        ids = set(prop.value) if prop else set()
+        for i in ids - watched:
+            try:
+                d.create_resource_object("window", i).change_attributes(
+                    event_mask=X.PropertyChangeMask)
+            except error.XError:
+                pass
+        watched.intersection_update(ids)
+        watched.update(ids)
+        d.sync()
+
     saved, known, keys = load(), {}, {}
+    watch_clients()
+    reconcile(saved, known, keys)
     while True:
-        try:
-            cur = windows()
-        except Exception:
-            time.sleep(1)
-            continue
-        for wid in sorted(cur, key=lambda x: int(x, 16)):
-            w = cur[wid]
-            st = state_of(w)
-            if wid not in known:
-                keys[wid] = assign_key(w["class"], keys)
-                want = saved.get(keys[wid])
-                if want and want != st:
-                    apply(wid, want)
-                    st = dict(want)
-                known[wid] = st
-            elif known[wid] != st:
-                known[wid] = st
-                saved[keys[wid]] = st
-                save(saved)
-        for wid in set(known) - set(cur):
-            del known[wid], keys[wid]
-        time.sleep(1)
+        if not d.pending_events():
+            select.select([d.fileno()], [], [])
+        dirty = False
+        while d.pending_events():
+            ev = d.next_event()
+            if ev.type == X.PropertyNotify and ev.atom in atoms:
+                dirty = True
+        if dirty:
+            time.sleep(0.3)  # let the window manager and app settle
+            while d.pending_events():
+                d.next_event()
+            watch_clients()
+            reconcile(saved, known, keys)
 
 
 def listing():

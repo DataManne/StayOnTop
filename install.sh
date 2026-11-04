@@ -5,7 +5,7 @@ set -e
 REPO=https://github.com/DataManne/StayOnTop
 DIR="$HOME/.local/share/stayontop"
 
-command -v wmctrl >/dev/null && command -v xprop >/dev/null || sudo apt install -y wmctrl x11-utils
+command -v wmctrl >/dev/null && command -v xprop >/dev/null && python3 -c "import Xlib" 2>/dev/null || sudo apt install -y wmctrl x11-utils python3-xlib
 
 if [ -d "$DIR/.git" ]; then
     git -C "$DIR" pull -q --ff-only
