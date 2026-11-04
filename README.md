@@ -2,12 +2,12 @@
 
 Daemon for Linux Mint (Cinnamon, X11) that remembers each app's workspace, "visible on all workspaces" and "always on top" across app and OS restarts.
 
-## Install
+## Install / update
 
-    sudo apt install wmctrl x11-utils
-    mkdir -p ~/.local/bin ~/.config/autostart
-    cp stayontop.py ~/.local/bin/ && chmod +x ~/.local/bin/stayontop.py
-    cp stayontop.desktop ~/.config/autostart/
+    curl -fsSL https://raw.githubusercontent.com/DataManne/StayOnTop/main/install.sh | sh
+
+Re-run the same command to update. Autostart also runs `git pull` at each login, so updates arrive automatically.
+After install, use `stayontop --list` for the live view.
 
 ## How it works
 
