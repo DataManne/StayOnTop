@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=StayOnTop
+Comment=Remember window workspace, sticky and always-on-top state
+Exec=python3 /home/USER/.local/share/stayontop/stayontop.py
+X-GNOME-Autostart-enabled=true
